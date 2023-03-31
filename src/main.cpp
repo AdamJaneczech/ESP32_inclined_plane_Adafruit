@@ -1,40 +1,119 @@
-#include <Arduino.h>
-#include <Wire.h>
-#include <Adafruit_VL53L0X.h>
+#include "Adafruit_VL53L0X.h"
 
-#define SENSOR1_ADDRESS 0x29
-#define SENSOR2_ADDRESS 0x30
+// address we will assign if dual sensor is present
+#define LOX1_ADDRESS 0x30
+#define LOX2_ADDRESS 0x31
 
-Adafruit_VL53L0X sensor1;
-Adafruit_VL53L0X sensor2;
+// set the pins to shutdown
+#define SHT_LOX1 26
+#define SHT_LOX2 25
+
+#define SDA_PIN 19
+#define SCL_PIN 15
+
+// objects for the vl53l0x
+Adafruit_VL53L0X lox1 = Adafruit_VL53L0X();
+Adafruit_VL53L0X lox2 = Adafruit_VL53L0X();
+
+// this holds the measurement
+VL53L0X_RangingMeasurementData_t measure1;
+VL53L0X_RangingMeasurementData_t measure2;
+
+/*
+    Reset all sensors by setting all of their XSHUT pins low for delay(10), then set all XSHUT high to bring out of reset
+    Keep sensor #1 awake by keeping XSHUT pin high
+    Put all other sensors into shutdown by pulling XSHUT pins low
+    Initialize sensor #1 with lox.begin(new_i2c_address) Pick any number but 0x29 and it must be under 0x7F. Going with 0x30 to 0x3F is probably OK.
+    Keep sensor #1 awake, and now bring sensor #2 out of reset by setting its XSHUT pin high.
+    Initialize sensor #2 with lox.begin(new_i2c_address) Pick any number but 0x29 and whatever you set the first sensor to
+ */
+void setID() {
+  // all reset
+  digitalWrite(SHT_LOX1, LOW);    
+  digitalWrite(SHT_LOX2, LOW);
+  delay(10);
+  // all unreset
+  digitalWrite(SHT_LOX1, HIGH);
+  digitalWrite(SHT_LOX2, HIGH);
+  delay(10);
+
+  // activating LOX1 and resetting LOX2
+  digitalWrite(SHT_LOX1, HIGH);
+  digitalWrite(SHT_LOX2, LOW);
+
+  Wire.begin(SDA_PIN, SCL_PIN);
+
+  // initing LOX1
+  if(!lox1.begin(LOX1_ADDRESS)) {
+    Serial.println(F("Failed to boot first VL53L0X"));
+    while(1);
+  }
+  lox1.setMeasurementTimingBudgetMicroSeconds(20000); // Set timing budget to 20ms
+  delay(10);
+
+  // activating LOX2
+  digitalWrite(SHT_LOX2, HIGH);
+  delay(10);
+
+  //initing LOX2
+  if(!lox2.begin(LOX2_ADDRESS)) {
+    Serial.println(F("Failed to boot second VL53L0X"));
+    while(1);
+  }
+  lox2.setMeasurementTimingBudgetMicroSeconds(20000); // Set timing budget to 20ms
+
+  Serial.print("LOX1: ");
+  Serial.println(lox1.getMeasurementTimingBudgetMicroSeconds());
+  Serial.print("LOX2: ");
+  Serial.println(lox2.getMeasurementTimingBudgetMicroSeconds());
+}
+
+void read_dual_sensors() {
+  lox1.rangingTest(&measure1, false); // pass in 'true' to get debug data printout!
+  lox2.rangingTest(&measure2, false); // pass in 'true' to get debug data printout!
+  // print sensor one reading
+  //Serial.print(F("1: "));
+  if(measure1.RangeStatus != 4) {     // if not out of range
+    Serial.print(measure1.RangeMilliMeter);
+  } else {
+    Serial.print(F("Out of range"));
+  }
+  
+  Serial.print(F(" "));
+
+  // print sensor two reading
+  //Serial.print(F("2: "));
+  if(measure2.RangeStatus != 4) {
+    Serial.print(measure2.RangeMilliMeter);
+  } else {
+    Serial.print(F("Out of range"));
+  }
+  
+  Serial.println();
+}
 
 void setup() {
-  Serial.begin(9600);
-  Wire.begin();
+  Serial.begin(115200);
+  Wire.setClock(1000000);
 
-  // Initialize sensors with different I2C addresses
-  sensor1.begin(SENSOR1_ADDRESS);
-  sensor2.begin(SENSOR2_ADDRESS);
+  // wait until serial port opens for native USB devices
+  while (! Serial) { delay(1); }
 
-  // Optional: Set measurement timing budget (in microseconds)
-  //sensor1.setMeasurementTimingBudget(20000);
-  //sensor2.setMeasurementTimingBudget(20000);
+  pinMode(SHT_LOX1, OUTPUT);
+  pinMode(SHT_LOX2, OUTPUT);
+
+  Serial.println(F("Shutdown pins inited..."));
+
+  digitalWrite(SHT_LOX1, LOW);
+  digitalWrite(SHT_LOX2, LOW);
+
+  Serial.println(F("Both in reset mode...(pins are low)"));
+  
+  Serial.println(F("Starting..."));
+  setID();
+ 
 }
 
 void loop() {
-  // Read distance from sensor 1
-  VL53L0X_RangingMeasurementData_t measurement1;
-  sensor1.rangingTest(&measurement1, false);
-  Serial.print("Sensor 1: ");
-  Serial.print(measurement1.RangeMilliMeter);
-  Serial.println(" mm");
-
-  // Read distance from sensor 2
-  VL53L0X_RangingMeasurementData_t measurement2;
-  sensor2.rangingTest(&measurement2, false);
-  Serial.print("Sensor 2: ");
-  Serial.print(measurement2.RangeMilliMeter);
-  Serial.println(" mm");
-
-  delay(1000);
+  read_dual_sensors();
 }
