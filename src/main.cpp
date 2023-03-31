@@ -1,4 +1,5 @@
 #include "Adafruit_VL53L0X.h"
+#include "Servo.h"
 
 // address we will assign if dual sensor is present
 #define LOX1_ADDRESS 0x30
@@ -11,13 +12,20 @@
 #define SDA_PIN 19
 #define SCL_PIN 15
 
+#define MAX_DIST 300
+
 // objects for the vl53l0x
 Adafruit_VL53L0X lox1 = Adafruit_VL53L0X();
 Adafruit_VL53L0X lox2 = Adafruit_VL53L0X();
 
+Servo servo;
+
 // this holds the measurement
 VL53L0X_RangingMeasurementData_t measure1;
 VL53L0X_RangingMeasurementData_t measure2;
+
+uint16_t initialDistance;
+uint16_t distance;
 
 /*
     Reset all sensors by setting all of their XSHUT pins low for delay(10), then set all XSHUT high to bring out of reset
@@ -42,6 +50,7 @@ void setID() {
   digitalWrite(SHT_LOX2, LOW);
 
   Wire.begin(SDA_PIN, SCL_PIN);
+  Wire.setClock(1000000);
 
   // initing LOX1
   if(!lox1.begin(LOX1_ADDRESS)) {
@@ -68,7 +77,7 @@ void setID() {
   Serial.println(lox2.getMeasurementTimingBudgetMicroSeconds());
 }
 
-void read_dual_sensors() {
+boolean read_dual_sensors() {
   lox1.rangingTest(&measure1, false); // pass in 'true' to get debug data printout!
   lox2.rangingTest(&measure2, false); // pass in 'true' to get debug data printout!
   // print sensor one reading
@@ -77,6 +86,7 @@ void read_dual_sensors() {
     Serial.print(measure1.RangeMilliMeter);
   } else {
     Serial.print(F("Out of range"));
+    return false;
   }
   
   Serial.print(F(" "));
@@ -85,16 +95,31 @@ void read_dual_sensors() {
   //Serial.print(F("2: "));
   if(measure2.RangeStatus != 4) {
     Serial.print(measure2.RangeMilliMeter);
+    return true;
   } else {
     Serial.print(F("Out of range"));
+    return false;
   }
   
   Serial.println();
 }
 
+void setInitialDistance(){
+  read_dual_sensors();
+  distance = 0;
+  if(measure1.RangeMilliMeter <= measure2.RangeMilliMeter){
+    initialDistance = measure1.RangeMilliMeter;
+  }
+  else if(measure1.RangeMilliMeter > measure2.RangeMilliMeter){
+    initialDistance = measure2.RangeMilliMeter;
+  }
+}
+
 void setup() {
   Serial.begin(115200);
-  Wire.setClock(1000000);
+
+  servo.attach(5);
+  servo.write(90);
 
   // wait until serial port opens for native USB devices
   while (! Serial) { delay(1); }
@@ -115,5 +140,9 @@ void setup() {
 }
 
 void loop() {
-  read_dual_sensors();
+  if(Serial.read() == 's'){ //request for a measurement
+    setInitialDistance();
+    //code for the measurement process
+  }
+  //add a status variable for the measurement statuses
 }
