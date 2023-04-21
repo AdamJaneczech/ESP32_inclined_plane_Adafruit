@@ -108,7 +108,7 @@ boolean read_dual_sensors() {
     return false;
   }
   
-  Serial.print(F(", time: "));
+  Serial.print(F(","));
   Serial.println(millis() - initialTime);
 
   return true;
