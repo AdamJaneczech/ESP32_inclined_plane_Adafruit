@@ -1,5 +1,7 @@
 #include "Adafruit_VL53L0X.h"
 #include "Servo.h"
+#include <PubSubClient.h>
+#include <WiFi.h>
 
 // address we will assign if dual sensor is present
 #define LOX1_ADDRESS 0x30
@@ -33,6 +35,14 @@ uint16_t distance;
 
 uint32_t id;
 uint8_t angle;
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+const char* ssid = "GKREN_STUDENT";
+const char* password = "g.stud.123";
+
+const char* mqtt_server = "your_MQTT_broker_address";;
 
 /*
     Reset all sensors by setting all of their XSHUT pins low for delay(10), then set all XSHUT high to bring out of reset
@@ -129,6 +139,17 @@ void servoState(bool state){
   }
 }
 
+void setWiFi(){
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+
+  client.setServer(mqtt_server, 1883);
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -151,7 +172,7 @@ void setup() {
   
   Serial.println(F("Starting..."));
   setID();
- 
+  setWiFi();
 }
 
 void loop() {
