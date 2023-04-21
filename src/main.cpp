@@ -8,16 +8,19 @@
 // set the pins to shutdown
 #define SHT_LOX1 26
 #define SHT_LOX2 25
-
+//set I2C pins on the ESP32
 #define SDA_PIN 19
 #define SCL_PIN 15
-
+//maximum distance
 #define MAX_DIST 300
+//servo angles
+#define OPEN_ANGLE 210
+#define CLOSED_ANGLE 120
 
 // objects for the vl53l0x
 Adafruit_VL53L0X lox1 = Adafruit_VL53L0X();
 Adafruit_VL53L0X lox2 = Adafruit_VL53L0X();
-
+//define a servo
 Servo servo;
 
 // this holds the measurement
@@ -25,7 +28,11 @@ VL53L0X_RangingMeasurementData_t measure1;
 VL53L0X_RangingMeasurementData_t measure2;
 
 uint16_t initialDistance;
+uint64_t initialTime;
 uint16_t distance;
+
+uint32_t id;
+uint8_t angle;
 
 /*
     Reset all sensors by setting all of their XSHUT pins low for delay(10), then set all XSHUT high to bring out of reset
@@ -84,34 +91,41 @@ boolean read_dual_sensors() {
   //Serial.print(F("1: "));
   if(measure1.RangeStatus != 4) {     // if not out of range
     Serial.print(measure1.RangeMilliMeter);
+    //Serial.print("range1");
   } else {
     Serial.print(F("Out of range"));
     return false;
   }
   
-  Serial.print(F(" "));
+  Serial.print(F(", "));
 
   // print sensor two reading
   //Serial.print(F("2: "));
   if(measure2.RangeStatus != 4) {
     Serial.print(measure2.RangeMilliMeter);
-    return true;
   } else {
     Serial.print(F("Out of range"));
     return false;
   }
   
-  Serial.println();
+  Serial.print(F(", time: "));
+  Serial.println(millis() - initialTime);
+
+  return true;
 }
 
 void setInitialDistance(){
+  initialDistance = measure1.RangeMilliMeter;
+  initialTime = millis();
   read_dual_sensors();
-  distance = 0;
-  if(measure1.RangeMilliMeter <= measure2.RangeMilliMeter){
-    initialDistance = measure1.RangeMilliMeter;
+}
+
+void servoState(bool state){
+  if(state){
+    servo.write(OPEN_ANGLE);
   }
-  else if(measure1.RangeMilliMeter > measure2.RangeMilliMeter){
-    initialDistance = measure2.RangeMilliMeter;
+  else{
+    servo.write(CLOSED_ANGLE);
   }
 }
 
@@ -120,6 +134,7 @@ void setup() {
 
   servo.attach(5);
   servo.write(90);
+  servoState(false);
 
   // wait until serial port opens for native USB devices
   while (! Serial) { delay(1); }
@@ -140,9 +155,14 @@ void setup() {
 }
 
 void loop() {
-  if(Serial.read() == 's'){ //request for a measurement
+  //request for a measurement
+  if(Serial.read() == 's'){ 
+    Serial.println("Measurement start");
+    Serial.println("-----------------");
     setInitialDistance();
-    //code for the measurement process
+    servoState(true);
+    while(uint16_t(measure2.RangeMilliMeter) >= 30){
+      read_dual_sensors();
+    }
   }
-  //add a status variable for the measurement statuses
 }
