@@ -42,7 +42,12 @@ PubSubClient client(espClient);
 const char* ssid = "GKREN_STUDENT";
 const char* password = "g.stud.123";
 
-const char* mqtt_server = "your_MQTT_broker_address";;
+const char* mqtt_server = "54.38.242.139";
+const char *mqtt_username = "user";
+const char *mqtt_password = "1.heslo.1";
+const char *topic = "experiment1";
+const int mqtt_port = 1883;
+
 
 /*
     Reset all sensors by setting all of their XSHUT pins low for delay(10), then set all XSHUT high to bring out of reset
@@ -150,6 +155,38 @@ void setWiFi(){
   client.setServer(mqtt_server, 1883);
 }
 
+void callback(char *topic, byte *payload, unsigned int length) {
+  Serial.print("Message arrived in topic: ");
+  Serial.println(topic);
+  Serial.print("Message:");
+  for (int i = 0; i < length; i++) {
+      Serial.print((char) payload[i]);
+  }
+  Serial.println();
+  Serial.println("-----------------------");
+}
+
+void setServer(){
+  //connecting to a mqtt broker
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+  while (!client.connected()) {
+     String client_id = "esp32-client-";
+     client_id += String(WiFi.macAddress());
+     Serial.printf("The client %s connects to the public mqtt broker\n", client_id.c_str());
+     if (client.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
+         Serial.println("Public emqx mqtt broker connected");
+     } else {
+         Serial.print("failed with state ");
+         Serial.print(client.state());
+         delay(2000);
+     }
+  }
+  // publish and subscribe
+  client.publish(topic, "Hi EMQX I'm ESP32 ^^");
+  client.subscribe(topic);
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -173,6 +210,7 @@ void setup() {
   Serial.println(F("Starting..."));
   setID();
   setWiFi();
+  setServer();
 }
 
 void loop() {
